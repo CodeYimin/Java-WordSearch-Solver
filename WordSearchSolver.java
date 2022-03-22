@@ -136,10 +136,10 @@ public class WordSearchSolver {
         int puzzleWidth = puzzle[0].length;
 
         // Prevent negative indexing
-        if (dirX < 0) {
+        while (dirX < 0) {
             dirX += puzzleWidth;
         }
-        if (dirY < 0) {
+        while (dirY < 0) {
             dirY += puzzleHeight;
         }
 

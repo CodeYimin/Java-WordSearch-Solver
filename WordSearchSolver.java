@@ -162,10 +162,10 @@ public class WordSearchSolver {
             // Add the positions of the letters to the solution if the word matches
             if (match || matchReversed) {
                 for (int charIndex = 0; charIndex < word.length(); charIndex++) {
-                    int i = (startRow + charIndex * dirY) % puzzleHeight;
-                    int j = (startCol + charIndex * dirX) % puzzleWidth;
+                    int row = (startRow + charIndex * dirY) % puzzleHeight;
+                    int col = (startCol + charIndex * dirX) % puzzleWidth;
 
-                    solution[i][j] = true;
+                    solution[row][col] = true;
                 }
                 // We don't break out of the loop because there may be multiple words that match
             }

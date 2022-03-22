@@ -3,25 +3,32 @@ import java.io.FileWriter;
 import java.util.Scanner;
 
 /**
- * A simple word search solver which finds words in a word search puzzle.
+ * A simple word search solver which finds the words from a puzzle.
  * 
- * The program takes a user specified input file which contains a word search
+ * The program takes an input file which contains the word search
  * puzzle.
  * It is assumed that the puzzle file is a rectangular grid of characters
  * separated by spaces.
  * 
- * The program then takes a user specified dictionary file which contains a list
+ * The program then takes a user specified workbank file which contains a list
  * of words to search for.
- * Each word in the dictionary is to be separated by a newline character.
+ * Each word in the wordbank is separated by a newline.
  * 
- * The solution is then outputted in the form of a text file called
+ * The solution is then outputted to a text file called
  * "solution.txt"
  * 
  * @author Yimin
- * @version 1.0
+ * @version 2.0
  * @date 2022/3/21
  */
 public class WordSearchSolver {
+    /**
+     * Gets the character height of a file
+     * 
+     * @param file the file to get the height of
+     * @return the height of the file
+     * @throws Exception
+     */
     private static int fileHeight(File file) throws Exception {
         Scanner scanner = new Scanner(file);
         int numRows = 0;
@@ -33,6 +40,14 @@ public class WordSearchSolver {
         return numRows;
     }
 
+    /**
+     * Gets the character width of a file assuming all rows
+     * are the same length.
+     * 
+     * @param file the file to get the width of
+     * @return the width of the file
+     * @throws Exception
+     */
     private static int fileWidth(File file) throws Exception {
         Scanner scanner = new Scanner(file);
         int length = scanner.nextLine().length();
@@ -40,19 +55,29 @@ public class WordSearchSolver {
         return length;
     }
 
+    /**
+     * Converts a file containing a rectangular grid of characters separated by
+     * spaces into a java 2D array of characters.
+     * 
+     * @param file the file containing the grid of characters
+     * @return a 2D array of characters
+     * @throws Exception
+     */
     private static char[][] processPuzzleFile(File file) throws Exception {
         int fileHeight = fileHeight(file);
         int fileWidth = fileWidth(file);
 
+        // Divide by 2 to account for the space between letters
+        // Ceil allows for both a trailing space or no trailing space at end of line
         int lettersPerRow = (int) Math.ceil((double) fileWidth / 2);
 
         char[][] puzzle = new char[fileHeight][lettersPerRow];
         Scanner scanner = new Scanner(file);
-        for (int i = 0; i < fileHeight; i++) {
+        for (int row = 0; row < fileHeight; row++) {
             String line = scanner.nextLine();
-            for (int j = 0; j < lettersPerRow; j++) {
-                // Multiply j by 2 because there are spaces between each character
-                puzzle[i][j] = line.charAt(j * 2);
+            for (int col = 0; col < lettersPerRow; col++) {
+                // Multiply col by 2 to account for the space between characters
+                puzzle[row][col] = line.charAt(col * 2);
             }
         }
         scanner.close();
@@ -60,16 +85,29 @@ public class WordSearchSolver {
         return puzzle;
     }
 
-    private static String[] processWordsFile(File file) throws Exception {
+    /**
+     * Converts a list of strings from a file into a java array of strings.
+     * 
+     * @param file the file to read from.
+     * @return the array of strings.
+     * @throws Exception
+     */
+    private static String[] processWordbankFile(File file) throws Exception {
         Scanner scanner = new Scanner(file);
-        String[] words = new String[fileHeight(file)];
-        for (int i = 0; i < words.length; i++) {
-            words[i] = scanner.nextLine();
+        String[] wordbank = new String[fileHeight(file)];
+        for (int row = 0; row < wordbank.length; row++) {
+            wordbank[row] = scanner.nextLine();
         }
         scanner.close();
-        return words;
+        return wordbank;
     }
 
+    /**
+     * Reverses the order of the characters in a string.
+     * 
+     * @param string the string to reverse
+     * @return the reversed string
+     */
     private static String reversed(String string) {
         String reversed = "";
         for (int i = string.length() - 1; i >= 0; i--) {
@@ -78,97 +116,101 @@ public class WordSearchSolver {
         return reversed;
     }
 
-    private static void fillRange(boolean[] array, int startIndex, int endIndex, boolean value) {
-        for (int i = startIndex; i < endIndex; i++) {
-            array[i % array.length] = value;
-        }
-    }
-
-    private static boolean wordIsAtIndex(char[] array, int index, String word) {
-        boolean match = true;
-        for (int charIndex = 0; charIndex < word.length() && match; charIndex++) {
-            int searchIndex = (index + charIndex) % array.length;
-            if (array[searchIndex] != word.charAt(charIndex)) {
-                match = false;
-            }
-        }
-        return match;
-    }
-
-    private static boolean[] wordMatches(char[] arrayToSearch, String[] words) {
-        boolean[] matchLocations = new boolean[arrayToSearch.length];
-
-        for (String word : words) {
-            for (int i = 0; i < arrayToSearch.length; i++) {
-                if (wordIsAtIndex(arrayToSearch, i, word) || wordIsAtIndex(arrayToSearch, i, reversed(word))) {
-                    fillRange(matchLocations, i, i + word.length(), true);
-                }
-            }
-        }
-
-        return matchLocations;
-    }
-
-    private static void solveLine(char[][] puzzle, boolean[][] solution, String[] words,
-            int startingX, int startingY, int offsetX, int offsetY) {
+    /**
+     * If a word from the word bank (normal or reversed) is found to
+     * start at the specified starting position and goes in the specified direction,
+     * the positions of the letters of the word are added to the solution.
+     * 
+     * @param puzzle   the puzzle containing the letters
+     * @param solution the method will store its solutions in this array (Previous
+     *                 solutions are not cleared)
+     * @param wordbank the word bank containing the words to search for
+     * @param startRow the row of the starting position
+     * @param startCol the column of the starting position
+     * @param dirX     the direction in the x-axis to move after a letter is checked
+     * @param dirY     the direction in the y-axis to move after a letter is checked
+     */
+    private static void solveDirection(char[][] puzzle, boolean[][] solution, String[] wordbank,
+            int startRow, int startCol, int dirX, int dirY) {
         int puzzleHeight = puzzle.length;
         int puzzleWidth = puzzle[0].length;
 
-        if (offsetX < 0) {
-            offsetX += puzzleWidth;
+        // Prevent negative indexing
+        if (dirX < 0) {
+            dirX += puzzleWidth;
         }
-        if (offsetY < 0) {
-            offsetY += puzzleHeight;
-        }
-
-        char[] line = new char[Math.max(puzzleHeight, puzzleWidth)];
-        // Convert the line from it's 2D form to 1D form to be processed
-        for (int charIndex = 0; charIndex < line.length; charIndex++) {
-            int i = (startingY + charIndex * offsetY) % puzzleHeight;
-            int j = (startingX + charIndex * offsetX) % puzzleWidth;
-
-            line[charIndex] = puzzle[i][j];
+        if (dirY < 0) {
+            dirY += puzzleHeight;
         }
 
-        boolean[] matchLocations = wordMatches(line, words);
-        // Convert the processed 1D array back to it's 2D form to store in the solution
-        for (int charIndex = 0; charIndex < line.length; charIndex++) {
-            int i = (startingY + charIndex * offsetY) % puzzleHeight;
-            int j = (startingX + charIndex * offsetX) % puzzleWidth;
+        for (String word : wordbank) {
+            // Keep checking if the puzzle letters match the word's letters until the end of
+            // the word is reached (success) or a letter doesn't match (fail)
+            boolean match = true;
+            boolean matchReversed = true;
+            for (int charIndex = 0; charIndex < word.length() && (match || matchReversed); charIndex++) {
+                int row = (startRow + charIndex * dirY) % puzzleHeight;
+                int col = (startCol + charIndex * dirX) % puzzleWidth;
+                if (puzzle[row][col] != word.charAt(charIndex)) {
+                    match = false;
+                }
+                if (puzzle[row][col] != reversed(word).charAt(charIndex)) {
+                    matchReversed = false;
+                }
+            }
 
-            if (matchLocations[charIndex]) {
-                solution[i][j] = true;
+            // Add the positions of the letters to the solution if the word matches
+            if (match || matchReversed) {
+                for (int charIndex = 0; charIndex < word.length(); charIndex++) {
+                    int i = (startRow + charIndex * dirY) % puzzleHeight;
+                    int j = (startCol + charIndex * dirX) % puzzleWidth;
+
+                    solution[i][j] = true;
+                }
+                // We don't break out of the loop because there may be multiple words that match
             }
         }
     }
 
-    private static boolean[][] solvePuzzle(char[][] puzzle, String[] words) {
+    /**
+     * Solves the word search puzzle by searching for words from the word bank,
+     * and returns the positions of the letters of the words found.
+     * 
+     * @param puzzle   the puzzle containing the letters to search from
+     * @param wordbank the word bank containing the words to search for
+     * @return the positions of the letters of the words found
+     */
+    private static boolean[][] solvePuzzle(char[][] puzzle, String[] wordbank) {
         boolean[][] solution = new boolean[puzzle.length][puzzle[0].length];
 
         int puzzleHeight = puzzle.length;
         int puzzleWidth = puzzle[0].length;
 
-        // Solve rows
-        for (int row = 0; row < puzzleHeight; row++) {
-            solveLine(puzzle, solution, words, 0, row, 1, 0);
-        }
-
-        // Solve columns
-        for (int col = 0; col < puzzleWidth; col++) {
-            solveLine(puzzle, solution, words, col, 0, 0, 1);
-        }
-
-        // Solve diagonals
         for (int row = 0; row < puzzleHeight; row++) {
             for (int col = 0; col < puzzleWidth; col++) {
-                solveLine(puzzle, solution, words, col, row, 1, 1);
-                solveLine(puzzle, solution, words, col, row, 1, -1);
+                // Horizontal
+                solveDirection(puzzle, solution, wordbank, row, col, 1, 0);
+                // Vertical
+                solveDirection(puzzle, solution, wordbank, row, col, 0, 1);
+                // Diagonals
+                solveDirection(puzzle, solution, wordbank, row, col, 1, 1);
+                solveDirection(puzzle, solution, wordbank, row, col, 1, -1);
             }
         }
 
         return solution;
     }
 
+    /**
+     * Prints the puzzle solution to a file by only printing the letters
+     * that belong to words from the word bank.
+     * Letters not part of a word are replaced with empty spaces
+     * 
+     * @param file     The file to print the solution to
+     * @param puzzle   The puzzle containing the letters
+     * @param solution The solution containing the positions of the words
+     * @throws Exception
+     */
     private static void outputSolution(File file, char[][] puzzle, boolean[][] solution) throws Exception {
         int puzzleHeight = puzzle.length;
         int puzzleWidth = puzzle[0].length;
@@ -193,6 +235,13 @@ public class WordSearchSolver {
         writer.close();
     }
 
+    /**
+     * Main method asking for input files,
+     * finding the solution, and printing the solution to a file.
+     * 
+     * @param args
+     * @throws Exception
+     */
     public static void main(String[] args) throws Exception {
         final String SOLUTION_FILE_NAME = "solution.txt";
 
@@ -200,19 +249,19 @@ public class WordSearchSolver {
 
         System.out.print("Enter puzzle file name: ");
         String puzzleFileName = scanner.nextLine();
-        System.out.print("Enter dictionary file name: ");
-        String wordsFileName = scanner.nextLine();
+        System.out.print("Enter word bank file name: ");
+        String wordbankFileName = scanner.nextLine();
 
         scanner.close();
 
         File puzzleFile = new File(puzzleFileName);
         char[][] puzzle = processPuzzleFile(puzzleFile);
-        File wordsFile = new File(wordsFileName);
-        String[] words = processWordsFile(wordsFile);
+        File wordsFile = new File(wordbankFileName);
+        String[] wordbank = processWordbankFile(wordsFile);
 
-        boolean[][] solution = solvePuzzle(puzzle, words);
+        boolean[][] solution = solvePuzzle(puzzle, wordbank);
 
-        File output = new File(SOLUTION_FILE_NAME);
-        outputSolution(output, puzzle, solution);
+        File outputFile = new File(SOLUTION_FILE_NAME);
+        outputSolution(outputFile, puzzle, solution);
     }
 }

@@ -3,7 +3,7 @@ import java.io.FileWriter;
 import java.util.Scanner;
 
 /**
- * A simple word search solver which finds the words from a puzzle.
+ * A simple word search solver which finds words from a grid of letters.
  * 
  * The program takes an input file which contains the word search
  * puzzle.
@@ -14,45 +14,53 @@ import java.util.Scanner;
  * of words to search for.
  * Each word in the wordbank is separated by a newline.
  * 
- * The solution is then outputted to a text file called
- * "solution.txt"
+ * The solution containing the word locations is
+ * then outputted to a text file called "solution.txt"
  * 
  * @author Yimin
- * @version 2.0
- * @date 2022/3/21
+ * @version 2.5 2022/3/21
  */
 public class WordSearchSolver {
     /**
-     * Gets the character height of a file
+     * Finds the number of consecutive non empty lines in a file
+     * starting from the first line
      * 
      * @param file the file to get the height of
-     * @return the height of the file
+     * @return number of non empty lines in the file
      * @throws Exception
      */
     private static int fileHeight(File file) throws Exception {
-        Scanner scanner = new Scanner(file);
         int numRows = 0;
-        while (scanner.hasNextLine()) {
+        Scanner scanner = new Scanner(file);
+        while (scanner.hasNextLine() && scanner.nextLine() != "") {
             numRows++;
-            scanner.nextLine();
         }
         scanner.close();
+
         return numRows;
     }
 
     /**
-     * Gets the character width of a file assuming all rows
-     * are the same length.
+     * Gets the number of non space characters in the
+     * first line of a file.
      * 
      * @param file the file to get the width of
      * @return the width of the file
      * @throws Exception
      */
-    private static int fileWidth(File file) throws Exception {
+    private static int fileLetterWidth(File file) throws Exception {
         Scanner scanner = new Scanner(file);
-        int length = scanner.nextLine().length();
+        String line = scanner.nextLine();
         scanner.close();
-        return length;
+
+        int width = 0;
+        for (int charIndex = 0; charIndex < line.length(); charIndex++) {
+            if (line.charAt(charIndex) != ' ') {
+                width++;
+            }
+        }
+
+        return width;
     }
 
     /**
@@ -64,20 +72,15 @@ public class WordSearchSolver {
      * @throws Exception
      */
     private static char[][] processPuzzleFile(File file) throws Exception {
-        int fileHeight = fileHeight(file);
-        int fileWidth = fileWidth(file);
+        int puzzleWidth = fileLetterWidth(file);
+        int puzzleHeight = fileHeight(file);
 
-        // Divide by 2 to account for the space between letters
-        // Ceil allows for both a trailing space or no trailing space at end of line
-        int lettersPerRow = (int) Math.ceil((double) fileWidth / 2);
+        char[][] puzzle = new char[puzzleHeight][puzzleWidth];
 
-        char[][] puzzle = new char[fileHeight][lettersPerRow];
         Scanner scanner = new Scanner(file);
-        for (int row = 0; row < fileHeight; row++) {
-            String line = scanner.nextLine();
-            for (int col = 0; col < lettersPerRow; col++) {
-                // Multiply col by 2 to account for the space between characters
-                puzzle[row][col] = line.charAt(col * 2);
+        for (int row = 0; row < puzzleHeight; row++) {
+            for (int col = 0; col < puzzleWidth; col++) {
+                puzzle[row][col] = scanner.next().charAt(0);
             }
         }
         scanner.close();
@@ -93,25 +96,27 @@ public class WordSearchSolver {
      * @throws Exception
      */
     private static String[] processWordbankFile(File file) throws Exception {
-        Scanner scanner = new Scanner(file);
         String[] wordbank = new String[fileHeight(file)];
+
+        Scanner scanner = new Scanner(file);
         for (int row = 0; row < wordbank.length; row++) {
             wordbank[row] = scanner.nextLine();
         }
         scanner.close();
+
         return wordbank;
     }
 
     /**
      * Reverses the order of the characters in a string.
      * 
-     * @param string the string to reverse
+     * @param target the string to reverse
      * @return the reversed string
      */
-    private static String reversed(String string) {
+    private static String reversed(String target) {
         String reversed = "";
-        for (int i = string.length() - 1; i >= 0; i--) {
-            reversed += string.charAt(i);
+        for (int i = target.length() - 1; i >= 0; i--) {
+            reversed += target.charAt(i);
         }
         return reversed;
     }
@@ -144,6 +149,8 @@ public class WordSearchSolver {
         }
 
         for (String word : wordbank) {
+            String wordReversed = reversed(word);
+
             // Keep checking if the puzzle letters match the word's letters until the end of
             // the word is reached (success) or a letter doesn't match (fail)
             boolean match = true;
@@ -151,10 +158,11 @@ public class WordSearchSolver {
             for (int charIndex = 0; charIndex < word.length() && (match || matchReversed); charIndex++) {
                 int row = (startRow + charIndex * dirY) % puzzleHeight;
                 int col = (startCol + charIndex * dirX) % puzzleWidth;
+
                 if (puzzle[row][col] != word.charAt(charIndex)) {
                     match = false;
                 }
-                if (puzzle[row][col] != reversed(word).charAt(charIndex)) {
+                if (puzzle[row][col] != wordReversed.charAt(charIndex)) {
                     matchReversed = false;
                 }
             }
@@ -186,15 +194,15 @@ public class WordSearchSolver {
         int puzzleHeight = puzzle.length;
         int puzzleWidth = puzzle[0].length;
 
+        // Search horizontal, vertical, and both diagonal axises
+        int[][] directionsToSearch = { { 1, 0 }, { 0, 1 }, { 1, 1 }, { 1, -1 } };
+
+        // From each letter, search in every direction
         for (int row = 0; row < puzzleHeight; row++) {
             for (int col = 0; col < puzzleWidth; col++) {
-                // Horizontal
-                solveDirection(puzzle, solution, wordbank, row, col, 1, 0);
-                // Vertical
-                solveDirection(puzzle, solution, wordbank, row, col, 0, 1);
-                // Diagonals
-                solveDirection(puzzle, solution, wordbank, row, col, 1, 1);
-                solveDirection(puzzle, solution, wordbank, row, col, 1, -1);
+                for (int[] direction : directionsToSearch) {
+                    solveDirection(puzzle, solution, wordbank, row, col, direction[0], direction[1]);
+                }
             }
         }
 
@@ -216,18 +224,25 @@ public class WordSearchSolver {
         int puzzleWidth = puzzle[0].length;
 
         String output = "";
-        for (int i = 0; i < puzzleHeight; i++) {
-            for (int j = 0; j < puzzleWidth; j++) {
-                if (solution[i][j]) {
-                    output += puzzle[i][j];
+        for (int row = 0; row < puzzleHeight; row++) {
+            for (int col = 0; col < puzzleWidth; col++) {
+                // Print letter if it's part of solution
+                if (solution[row][col]) {
+                    output += puzzle[row][col];
                 } else {
                     output += " ";
                 }
-                if (j != puzzleWidth - 1) {
+
+                // Space between each letter
+                if (col != puzzleWidth - 1) {
                     output += " ";
                 }
             }
-            output += "\n";
+
+            // New line between each row
+            if (row != puzzleHeight - 1) {
+                output += "\n";
+            }
         }
 
         FileWriter writer = new FileWriter(file);
